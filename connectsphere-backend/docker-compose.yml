@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: connectsphere_db
+    environment:
+      POSTGRES_USER: connectsphere
+      POSTGRES_PASSWORD: connectsphere_password
+      POSTGRES_DB: connectsphere_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U connectsphere -d connectsphere_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  backend:
+    build: .
+    container_name: connectsphere_backend
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://connectsphere:connectsphere_password@db:5432/connectsphere_db?sslmode=disable
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - PORT=8080
+      - GIN_MODE=release
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
