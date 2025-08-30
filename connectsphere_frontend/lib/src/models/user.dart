@@ -9,7 +9,7 @@ class User extends Equatable {
   final String username;
   @JsonKey(name: 'display_name')
   final String displayName;
-  final String email; // Back to required since backend now provides it
+  final String? email; // Optional since search results don't include email
   @JsonKey(name: 'created_at')
   final DateTime createdAt;
 
@@ -17,7 +17,7 @@ class User extends Equatable {
     required this.id,
     required this.username,
     required this.displayName,
-    required this.email, // Required again
+    this.email, // Optional
     required this.createdAt,
   });
 

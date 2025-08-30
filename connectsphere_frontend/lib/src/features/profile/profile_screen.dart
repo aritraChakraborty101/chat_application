@@ -113,7 +113,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 16),
 
               // Email (read-only)
-              _buildInfoCard('Email', user.email),
+              _buildInfoCard('Email', user.email ?? 'Not available'),
 
               const SizedBox(height: 16),
 

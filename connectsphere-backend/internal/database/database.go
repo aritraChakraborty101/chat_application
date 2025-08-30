@@ -149,17 +149,31 @@ func (db *DB) UpdateUser(ctx context.Context, id uuid.UUID, displayName string) 
 	return nil
 }
 
-// SearchUsers searches for users by username or display name
+// SearchUsers searches for users by username or display name with improved matching
 func (db *DB) SearchUsers(ctx context.Context, query string, limit int) ([]models.UserPublic, error) {
+	// Enhanced search query with better ranking and matching
 	searchQuery := `
-		SELECT id, username, display_name, created_at
+		SELECT id, username, display_name, created_at,
+		       -- Ranking system: exact matches first, then prefix matches, then partial matches
+		       CASE 
+		           WHEN LOWER(username) = LOWER($1) OR LOWER(display_name) = LOWER($1) THEN 1
+		           WHEN LOWER(username) LIKE LOWER($1) || '%' OR LOWER(display_name) LIKE LOWER($1) || '%' THEN 2
+		           WHEN LOWER(username) LIKE '%' || LOWER($1) || '%' OR LOWER(display_name) LIKE '%' || LOWER($1) || '%' THEN 3
+		           ELSE 4
+		       END as rank
 		FROM users 
-		WHERE username ILIKE $1 OR display_name ILIKE $1
-		ORDER BY username
+		WHERE LOWER(username) LIKE '%' || LOWER($1) || '%' 
+		   OR LOWER(display_name) LIKE '%' || LOWER($1) || '%'
+		ORDER BY rank ASC, 
+		         -- Secondary ordering: exact matches first, then by length (shorter names first), then alphabetically
+		         CASE WHEN LOWER(username) = LOWER($1) THEN 0 ELSE 1 END,
+		         CASE WHEN LOWER(display_name) = LOWER($1) THEN 0 ELSE 1 END,
+		         LENGTH(username), 
+		         LENGTH(display_name),
+		         username
 		LIMIT $2`
 
-	searchTerm := "%" + query + "%"
-	rows, err := db.pool.Query(ctx, searchQuery, searchTerm, limit)
+	rows, err := db.pool.Query(ctx, searchQuery, query, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search users: %w", err)
 	}
@@ -168,7 +182,8 @@ func (db *DB) SearchUsers(ctx context.Context, query string, limit int) ([]model
 	var users []models.UserPublic
 	for rows.Next() {
 		var user models.UserPublic
-		err := rows.Scan(&user.ID, &user.Username, &user.DisplayName, &user.CreatedAt)
+		var rank int // We don't need to return this, just for the query
+		err := rows.Scan(&user.ID, &user.Username, &user.DisplayName, &user.CreatedAt, &rank)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}

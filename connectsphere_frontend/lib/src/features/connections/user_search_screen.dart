@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
 import 'connections_provider.dart';
 import '../../models/user.dart';
 
@@ -12,11 +13,26 @@ class UserSearchScreen extends ConsumerStatefulWidget {
 
 class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
   final _searchController = TextEditingController();
+  Timer? _debounce;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (query.trim().isNotEmpty && query.trim().length >= 2) {
+        ref
+            .read(connectionsNotifierProvider.notifier)
+            .searchUsers(query.trim());
+      } else {
+        ref.read(connectionsNotifierProvider.notifier).clearSearchResults();
+      }
+    });
   }
 
   @override
@@ -38,7 +54,7 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search by username or display name',
+                hintText: 'Search by username or display name (min 2 chars)',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -48,22 +64,15 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
                           ref
                               .read(connectionsNotifierProvider.notifier)
                               .clearSearchResults();
+                          setState(() {}); // Update for suffixIcon
                         },
                       )
                     : null,
                 border: const OutlineInputBorder(),
               ),
               onChanged: (value) {
-                if (value.trim().isNotEmpty) {
-                  ref
-                      .read(connectionsNotifierProvider.notifier)
-                      .searchUsers(value.trim());
-                } else {
-                  ref
-                      .read(connectionsNotifierProvider.notifier)
-                      .clearSearchResults();
-                }
                 setState(() {}); // Update for suffixIcon
+                _onSearchChanged(value);
               },
             ),
           ),
